@@ -21,15 +21,20 @@ from pydantic import BaseModel
 import pdfplumber
 import io
 
-# Claude AI Integration
+# AI Integration
 from anthropic import Anthropic
 from supabase import create_client, Client
+import google.generativeai as genai
 
 # Initialize Anthropic client
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 if not ANTHROPIC_API_KEY:
     raise ValueError("ANTHROPIC_API_KEY environment variable is required")
 anthropic_client = Anthropic(api_key=ANTHROPIC_API_KEY)
+
+# Initialize Gemini client
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "AIzaSyB89yABE2VjGGS8Xb3w4DGVqZq09543lZc")
+genai.configure(api_key=GEMINI_API_KEY)
 
 # Initialize Supabase client with Service Role Key
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://poeulzxkjcxeszfcsiks.supabase.co")
@@ -477,7 +482,7 @@ class ChatRequest(BaseModel):
     message: str
     session_id: str
     include_audit_context: bool = True
-    model: str = "opus"  # "opus" or "sonnet"
+    model: str = "opus"  # "opus", "sonnet", "gemini-pro", "gemini-flash"
 
 
 class ChatResponse(BaseModel):
@@ -1369,11 +1374,20 @@ JSON:
         # Parse Claude's JSON response
         response_text = response.content[0].text
         
-        # Extract JSON from response (might have markdown)
+        # Extract JSON from response (might have markdown or extra text)
         import json
-        json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+        
+        # Try to find JSON block (handle multiline)
+        json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', response_text, re.DOTALL)
         if json_match:
-            result = json.loads(json_match.group(0))
+            try:
+                result = json.loads(json_match.group(0))
+            except json.JSONDecodeError:
+                # If JSON parsing fails, try cleaning the string
+                cleaned = re.sub(r'[\n\r]+', ' ', json_match.group(0))
+                cleaned = re.sub(r',\s*}', '}', cleaned)  # Remove trailing commas
+                cleaned = re.sub(r',\s*]', ']', cleaned)
+                result = json.loads(cleaned)
             result["filename"] = filename
             print(f"  Claude Vision extracted: {result}")
             
@@ -1973,21 +1987,40 @@ Diese Informationen wurden aus früheren Prüfungen gelernt und vom Benutzer bes
 
     try:
         # Determine model based on user selection
-        # Using Claude 4.5 models (correct API names)
-        model_name = "claude-opus-4-5" if request.model == "opus" else "claude-sonnet-4-5"
-        max_tokens = 2000 if request.model == "opus" else 1500
+        print(f"Selected model: {request.model}")
         
-        print(f"Using model: {model_name}")
-        
-        # Call Claude with conversation history
-        response = anthropic_client.messages.create(
-            model=model_name,
-            max_tokens=max_tokens,
-            system=system_prompt,
-            messages=session["messages"]
-        )
-        
-        assistant_message = response.content[0].text
+        # Handle Gemini models (for large PDFs)
+        if request.model in ["gemini-pro", "gemini-flash"]:
+            gemini_model_name = "gemini-3-pro-latest" if request.model == "gemini-pro" else "gemini-3-flash-latest"
+            print(f"Using Gemini model: {gemini_model_name}")
+            
+            model = genai.GenerativeModel(gemini_model_name)
+            
+            # Build Gemini prompt (simple concatenation)
+            gemini_prompt = system_prompt + "\n\n---\n\nKonversation:\n\n"
+            for msg in session["messages"]:
+                role = "User" if msg['role'] == "user" else "Assistant"
+                gemini_prompt += f"{role}: {msg['content']}\n\n"
+            
+            gemini_response = model.generate_content(gemini_prompt)
+            assistant_message = gemini_response.text
+            
+        else:
+            # ONLY USE CLAUDE 4.5 MODELS - NO OTHER VERSIONS ALLOWED
+            model_name = "claude-opus-4-5" if request.model == "opus" else "claude-sonnet-4-5"
+            max_tokens = 2000 if request.model == "opus" else 1500
+            
+            print(f"Using Claude model: {model_name}")
+            
+            # Call Claude with conversation history
+            response = anthropic_client.messages.create(
+                model=model_name,
+                max_tokens=max_tokens,
+                system=system_prompt,
+                messages=session["messages"]
+            )
+            
+            assistant_message = response.content[0].text
         
         # Detect if user wants to save knowledge
         user_message_lower = request.message.lower()

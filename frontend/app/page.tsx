@@ -643,7 +643,7 @@ export default function Home() {
   const [analysisStage, setAnalysisStage] = useState("");
   const [sessions, setSessions] = useState<Session[]>([]);
   const [learningSuggestions, setLearningSuggestions] = useState<LearningSuggestion[]>([]);
-  const [selectedModel, setSelectedModel] = useState<"opus" | "sonnet">("opus");
+  const [selectedModel, setSelectedModel] = useState<"opus" | "sonnet" | "gemini-pro" | "gemini-flash">("opus");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Session Management (define FIRST before useEffects)
@@ -1188,33 +1188,65 @@ Ich erkenne automatisch die Dokumenttypen und prüfe die Abstimmung. Falls etwas
             </button>
           </div>
 
-          {/* Model Toggle */}
-          <div className="flex items-center justify-center gap-2 mt-3 mb-2">
-            <span className="text-xs text-[rgb(var(--text-muted))]">Modell:</span>
-            <div className="flex gap-1 p-1 bg-[rgb(var(--bg-tertiary))] rounded-lg">
+          {/* Model Toggle - 4 Options */}
+          <div className="flex flex-col items-center gap-2 mt-3 mb-2">
+            <span className="text-xs text-[rgb(var(--text-muted))]">KI-Modell:</span>
+            <div className="grid grid-cols-2 gap-1 p-1 bg-[rgb(var(--bg-tertiary))] rounded-lg">
               <button
                 onClick={() => setSelectedModel("sonnet")}
                 className={clsx(
-                  "px-3 py-1 text-xs rounded-md transition-all font-medium",
+                  "px-3 py-1.5 text-xs rounded-md transition-all font-medium whitespace-nowrap",
                   selectedModel === "sonnet"
                     ? "bg-gradient-to-r from-[rgb(var(--accent-primary))] to-[rgb(var(--accent-secondary))] text-white shadow-sm"
                     : "text-[rgb(var(--text-muted))] hover:text-[rgb(var(--text-primary))]"
                 )}
+                title="Claude Sonnet 4.5 - Schnell & Präzise"
               >
                 Sonnet 4.5
               </button>
               <button
                 onClick={() => setSelectedModel("opus")}
                 className={clsx(
-                  "px-3 py-1 text-xs rounded-md transition-all font-medium",
+                  "px-3 py-1.5 text-xs rounded-md transition-all font-medium whitespace-nowrap",
                   selectedModel === "opus"
                     ? "bg-gradient-to-r from-[rgb(var(--accent-primary))] to-[rgb(var(--accent-secondary))] text-white shadow-sm"
                     : "text-[rgb(var(--text-muted))] hover:text-[rgb(var(--text-primary))]"
                 )}
+                title="Claude Opus 4.5 - Höchste Genauigkeit"
               >
                 Opus 4.5
               </button>
+              <button
+                onClick={() => setSelectedModel("gemini-flash")}
+                className={clsx(
+                  "px-3 py-1.5 text-xs rounded-md transition-all font-medium whitespace-nowrap",
+                  selectedModel === "gemini-flash"
+                    ? "bg-gradient-to-r from-[rgb(var(--accent-primary))] to-[rgb(var(--accent-secondary))] text-white shadow-sm"
+                    : "text-[rgb(var(--text-muted))] hover:text-[rgb(var(--text-primary))]"
+                )}
+                title="Gemini 3 Flash - Schnellste, große PDFs"
+              >
+                Gemini Flash
+              </button>
+              <button
+                onClick={() => setSelectedModel("gemini-pro")}
+                className={clsx(
+                  "px-3 py-1.5 text-xs rounded-md transition-all font-medium whitespace-nowrap",
+                  selectedModel === "gemini-pro"
+                    ? "bg-gradient-to-r from-[rgb(var(--accent-primary))] to-[rgb(var(--accent-secondary))] text-white shadow-sm"
+                    : "text-[rgb(var(--text-muted))] hover:text-[rgb(var(--text-primary))]"
+                )}
+                title="Gemini 3 Pro - Große PDFs, OCR"
+              >
+                Gemini Pro
+              </button>
             </div>
+            <p className="text-[10px] text-[rgb(var(--text-muted))] text-center max-w-md">
+              {selectedModel === "opus" && "Claude Opus: Höchste Präzision"}
+              {selectedModel === "sonnet" && "Claude Sonnet: Schnell & Zuverlässig"}
+              {selectedModel === "gemini-pro" && "Gemini Pro: Große PDFs & Gescannte Dokumente"}
+              {selectedModel === "gemini-flash" && "Gemini Flash: Schnellste Option für große Dateien"}
+            </p>
           </div>
 
           <p className="text-center text-xs text-[rgb(var(--text-muted))]">
