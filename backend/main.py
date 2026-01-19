@@ -24,7 +24,7 @@ import io
 # AI Integration
 from anthropic import Anthropic
 from supabase import create_client, Client
-import google.generativeai as genai
+from google import genai as google_genai
 
 # Initialize Anthropic client
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
@@ -32,9 +32,9 @@ if not ANTHROPIC_API_KEY:
     raise ValueError("ANTHROPIC_API_KEY environment variable is required")
 anthropic_client = Anthropic(api_key=ANTHROPIC_API_KEY)
 
-# Initialize Gemini client
+# Initialize Gemini 3 client
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "AIzaSyB89yABE2VjGGS8Xb3w4DGVqZq09543lZc")
-genai.configure(api_key=GEMINI_API_KEY)
+gemini_client = google_genai.Client(api_key=GEMINI_API_KEY)
 
 # Initialize Supabase client with Service Role Key
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://poeulzxkjcxeszfcsiks.supabase.co")
@@ -1989,21 +1989,29 @@ Diese Informationen wurden aus früheren Prüfungen gelernt und vom Benutzer bes
         # Determine model based on user selection
         print(f"Selected model: {request.model}")
         
-        # Handle Gemini models (for large PDFs)
+        # Handle Gemini 3 models (for large PDFs and scanned documents)
         if request.model in ["gemini-pro", "gemini-flash"]:
-            gemini_model_name = "gemini-3-pro-latest" if request.model == "gemini-pro" else "gemini-3-flash-latest"
-            print(f"Using Gemini model: {gemini_model_name}")
+            # ONLY USE GEMINI 3 MODELS
+            gemini_model_name = "gemini-3-pro-preview" if request.model == "gemini-pro" else "gemini-3-flash-preview"
+            print(f"Using Gemini 3 model: {gemini_model_name}")
             
-            model = genai.GenerativeModel(gemini_model_name)
-            
-            # Build Gemini prompt (simple concatenation)
+            # Build Gemini prompt with conversation history
             gemini_prompt = system_prompt + "\n\n---\n\nKonversation:\n\n"
             for msg in session["messages"]:
                 role = "User" if msg['role'] == "user" else "Assistant"
                 gemini_prompt += f"{role}: {msg['content']}\n\n"
             
-            gemini_response = model.generate_content(gemini_prompt)
-            assistant_message = gemini_response.text
+            # Call Gemini 3
+            gemini_response = gemini_client.models.generate_content(
+                model=gemini_model_name,
+                contents=gemini_prompt
+            )
+            # Handle multi-part response
+            if hasattr(gemini_response, 'text'):
+                assistant_message = gemini_response.text
+            else:
+                # Concatenate text parts if response has multiple parts
+                assistant_message = "".join([part.text for part in gemini_response.candidates[0].content.parts if hasattr(part, 'text')])
             
         else:
             # ONLY USE CLAUDE 4.5 MODELS - NO OTHER VERSIONS ALLOWED
