@@ -247,93 +247,115 @@ async def get_client_knowledge(client_name: str) -> dict:
 
 SWISS_TAX_AUDIT_PROMPT = """Du bist ein Experte für Schweizer Gemeindesteuerprüfung.
 
-## DEINE AUFGABE:
-Analysiere die hochgeladenen PDF-Dokumente und extrahiere alle relevanten Steuerdaten.
+## WICHTIG - SCHRITT FÜR SCHRITT VORGEHEN:
 
-## DOKUMENTTYPEN DIE DU ERKENNEN MUSST:
+1. ZUERST: Öffne und lies JEDES PDF vollständig durch - ALLE Seiten!
+2. DANN: Identifiziere den Dokumenttyp für JEDES Dokument
+3. DANN: Extrahiere die relevanten Zahlen
+4. ZULETZT: Berechne die Prüfungsergebnisse
 
-### 1. Steuerabrechnungen (JA, SR, NAST)
-- **JA (Jahresabrechnung)**: Aktuelle Jahresabrechnung
-  - Zeile 45 "Total Restanzen" = Steuerforderungen des aktuellen Jahres
-  - Nur bei JA ist Zeile 45 eine SOLL-Buchung
-  
-- **SR (Steuerrestanzen)**: Abrechnungen aus Vorjahren (2023, 2022, etc.)
-  - Zeile 45 "Total Restanzenvortrag" = HABEN-Buchung (Auflösung Vorjahr)
-  - Zeile 51 "Total Restanzen" = neuer Stand per Jahresende
-  
-- **NAST (Nachsteuern)**: Nachträgliche Steuerforderungen
-  - Zeile 38 oder 44 "Total Restanzen Nachsteuern"
+Nimm dir Zeit und sei SEHR sorgfältig. Lies ALLE Seiten in JEDEM PDF!
 
-### 2. FiBu-Kontoauszüge
-- **Konto 1012.00**: Steuerforderungen (POSITIVE Restanzen)
-- **Konto 2002.00**: Steuerverpflichtungen (NEGATIVE Restanzen, als positive Zahl auf Passivseite)
-- Suche nach: "Endsaldo", "Saldo per 31.12.", "Schlusssaldo"
-- WICHTIG: Nimm den ENDSALDO, nicht den Startsaldo!
+## DOKUMENTTYPEN:
 
-### 3. Spaltenlogik
-- Bei Gemeinden: Spalte "Politische Gemeinde" oder "Gemeinde"
-- Bei Kirchen: "ref. Kirche" oder "kath. Kirche"
-- Bei Schulen: "Sekundarschule"
+### Steuerabrechnungen (JA, SR, NAST)
 
-## PRÜFUNGSREGELN:
+**JA (Jahresabrechnung / JAD)** - Aktuelles Jahr:
+- Erkennbar an: "Jahresabschluss", "JA", "JAD" im Titel
+- Zeile 45 "Total Restanzen" = Steuerforderungen (SOLL-Buchung)
+- Spalte "Politische Gemeinde" verwenden!
+
+**SR (Steuerrestanzen)** - Vorjahre (2024, 2023, 2022...):
+- Erkennbar an: "SR", "Steuerrestanzen", Vorjahreszahlen
+- Zeile 51 "Total Restanzen" = neuer Stand (SOLL)
+- Spalte "Politische Gemeinde" verwenden!
+- WICHTIG: Diese Dokumente können in EINEM PDF zusammengefasst sein!
+- SCROLLE durch das gesamte PDF um ALLE Jahre zu finden!
+
+**NAST (Nachsteuern)**:
+- Erkennbar an: "Nachsteuern", "NAST"
+- Zeile 38 oder 44 "Total Restanzen"
+
+### FiBu-Kontoauszüge
+
+**Konto 1012.00** - Steuerforderungen:
+- Enthält POSITIVE Restanzen
+- Suche: "Endsaldo", "Schlusssaldo", "Saldo per 31.12."
+- WICHTIG: Nimm den ENDSALDO, NICHT den Startsaldo!
+
+**Konto 2002.00** - Steuerverpflichtungen:
+- Enthält NEGATIVE Restanzen (aber als positive Zahl auf Passivseite)
+- Wenn Endsaldo = 0: Keine Verpflichtungen vorhanden
+
+## PRÜFUNGSLOGIK:
 
 **R805 - Steuerforderungen:**
-- Summe aller POSITIVEN Restanzen (JA + SR + NAST) = FiBu Konto 1012.00 Endsaldo
+Summe(JA Zeile 45 + alle SR Zeile 51 + NAST) = FiBu 1012.00 Endsaldo
 
 **R806 - Steuerverpflichtungen:**
-- Summe aller NEGATIVEN Restanzen = FiBu Konto 2002.00 Endsaldo
-- Negative Werte in der Steuerabrechnung werden auf der Passivseite POSITIV dargestellt
+Summe(negative Restanzen) = FiBu 2002.00 Endsaldo
+- Wenn keine negativen Restanzen: Status = MATCH mit 0
 
-## AUSGABEFORMAT (JSON):
+## AUSGABE (JSON):
 
 ```json
 {
-  "organization_name": "Name der Gemeinde/Organisation",
+  "organization_name": "Name der Gemeinde",
   "documents": [
     {
       "filename": "Dateiname.pdf",
       "type": "JA|SR|NAST|FiBu",
-      "year": "2024",
+      "year": "2025",
+      "page_info": "Seite 1-3 von 10",
       "data": {
-        "restanzen_gemeinde": 123456.78,
+        "restanzen_gemeinde": 67884.25,
+        "zeile": 45,
+        "spalte": "Politische Gemeinde",
         "is_negative": false,
         "account": "1012.00",
-        "saldo": 123456.78
+        "saldo": 57311.04
       }
     }
   ],
   "r805_result": {
-    "tax_total": 123456.78,
-    "fibu_total": 123456.78,
-    "difference": 0.00,
-    "status": "MATCH|MISMATCH|INCOMPLETE|NO_DATA",
+    "tax_total": 67884.25,
+    "fibu_total": 57311.04,
+    "difference": 10573.21,
+    "status": "MISMATCH",
+    "calculation": "JA 2025: 67884.25 + SR 2024: 0.00 = 67884.25",
     "tax_items": [
-      {"year": "2024", "type": "JA", "amount": 100000.00, "source": "Datei.pdf"}
+      {"year": "2025", "type": "JA", "amount": 67884.25, "source": "2025 JAD.pdf", "zeile": 45}
     ],
     "fibu_items": [
-      {"account": "1012.00", "amount": 123456.78, "source": "FiBu.pdf"}
+      {"account": "1012.00", "amount": 57311.04, "source": "R805 FiBu.pdf"}
     ]
   },
   "r806_result": {
-    "tax_total": null,
-    "fibu_total": 0.00,
-    "difference": 0.00,
+    "tax_total": 0,
+    "fibu_total": 0,
+    "difference": 0,
     "status": "MATCH",
     "tax_items": [],
     "fibu_items": []
   },
   "findings": [
-    "Steuerabrechnung JA 2024 zeigt CHF 67'884.25 auf Zeile 45",
-    "FiBu Konto 1012.00 hat Endsaldo CHF 57'311.04"
+    "JA 2025: CHF 67'884.25 auf Zeile 45 (Spalte Politische Gemeinde)",
+    "FiBu 1012.00 Endsaldo: CHF 57'311.04",
+    "SR-Dokumente für Vorjahre gefunden: 2024, 2023, 2022"
   ],
   "recommendations": [
-    "Prüfen Sie, ob alle SR-Dokumente hochgeladen wurden",
-    "Verzugszinsen könnten die Differenz erklären"
+    "Differenz von CHF 10'573.21 prüfen",
+    "Alle SR-Dokumente auf Vollständigkeit prüfen"
   ]
 }
 ```
 
-Analysiere ALLE Seiten in ALLEN PDFs sorgfältig!
+## CHECKLISTE VOR DER AUSGABE:
+- [ ] Habe ich ALLE PDFs gelesen?
+- [ ] Habe ich ALLE Seiten in jedem PDF gesehen?
+- [ ] Habe ich die richtige Spalte (Politische Gemeinde) verwendet?
+- [ ] Habe ich Endsaldo (nicht Startsaldo) genommen?
+- [ ] Stimmt meine Berechnung?
 """
 
 
@@ -416,13 +438,27 @@ async def analyze_pdfs_with_llm(
                     if hasattr(part, "text")
                 ])
         else:
-            # Use Claude Sonnet/Opus
+            # Use Claude Sonnet/Opus with extended thinking for accuracy
             model_name = "claude-opus-4-5" if model == "opus" else "claude-sonnet-4-5"
             print(f"Using Claude: {model_name}")
             
+            # System prompt for careful analysis
+            system_prompt = """Du bist ein erfahrener Steuerprüfer für Schweizer Gemeinden.
+Deine Aufgabe ist es, Steuerdokumente SEHR SORGFÄLTIG zu analysieren.
+
+WICHTIG:
+- Lies JEDES Dokument VOLLSTÄNDIG durch
+- Scrolle durch ALLE Seiten in JEDEM PDF
+- Achte auf die RICHTIGE Spalte (meist "Politische Gemeinde")
+- Bei FiBu-Auszügen: Nimm den ENDSALDO, nicht Startsaldo
+- Prüfe deine Berechnungen DOPPELT
+
+Wenn du unsicher bist, sage es. Lieber einmal mehr prüfen als falsche Zahlen liefern."""
+
             response = anthropic_client.messages.create(
                 model=model_name,
-                max_tokens=4000,
+                max_tokens=8000,
+                system=system_prompt,
                 messages=[{
                     "role": "user",
                     "content": content
@@ -599,6 +635,20 @@ async def analyze_files(
             uploaded_count += 1
     
     print(f"Uploaded {uploaded_count} PDFs to Supabase")
+    
+    # Wait for Supabase to fully commit the uploads
+    await asyncio.sleep(1.5)
+    
+    # Verify uploads are accessible
+    pdf_urls = await get_session_pdf_urls(session_id)
+    print(f"Verified {len(pdf_urls)} PDFs accessible in Supabase")
+    
+    # If not all uploaded, wait and retry
+    if len(pdf_urls) < uploaded_count:
+        print(f"  Waiting for remaining uploads...")
+        await asyncio.sleep(2.0)
+        pdf_urls = await get_session_pdf_urls(session_id)
+        print(f"  Now {len(pdf_urls)} PDFs accessible")
     
     if uploaded_count == 0:
         return AnalysisResponse(
