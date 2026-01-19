@@ -1461,13 +1461,13 @@ async def analyze_files(
     # Generate session ID early for file storage
     session_id = str(uuid.uuid4())
     
-    # Log analysis start
-    await log_activity(
-        session_id=session_id,
-        event_type="analysis_start",
-        event_category="document",
-        data={"file_count": len(files), "has_context": bool(user_context)}
-    )
+    # Log analysis start (disabled - causing crashes)
+    # await log_activity(
+    #     session_id=session_id,
+    #     event_type="analysis_start",
+    #     event_category="document",
+    #     data={"file_count": len(files), "has_context": bool(user_context)}
+    # )
     file_storage[session_id] = []
     
     loop = asyncio.get_event_loop()
@@ -1572,23 +1572,23 @@ async def analyze_files(
     # Auto-detect organization name from documents
     auto_name = detect_organization_name(tax_docs, fibu_docs)
     
-    # Log analysis complete
-    await log_activity(
-        session_id=session_id,
-        event_type="analysis_complete",
-        event_category="document",
-        data={
-            "files_processed": len(files),
-            "tax_files": len(tax_docs),
-            "fibu_files": len(fibu_docs),
-            "organization": auto_name,
-            "audit_results_count": len(audit_results),
-            "matches": len([r for r in audit_results if r.summary.status == "MATCH"]),
-            "mismatches": len([r for r in audit_results if r.summary.status == "MISMATCH"]),
-        },
-        duration_ms=duration_ms,
-        status="success"
-    )
+    # Log analysis complete (disabled for now - causing crashes)
+    # await log_activity(
+    #     session_id=session_id,
+    #     event_type="analysis_complete",
+    #     event_category="document",
+    #     data={
+    #         "files_processed": len(files),
+    #         "tax_files": len(tax_docs),
+    #         "fibu_files": len(fibu_docs),
+    #         "organization": auto_name,
+    #         "audit_results_count": len(audit_results),
+    #         "matches": len([r for r in audit_results if r.summary.status == "MATCH"]),
+    #         "mismatches": len([r for r in audit_results if r.summary.status == "MISMATCH"]),
+    #     },
+    #     duration_ms=duration_ms,
+    #     status="success"
+    # )
     
     # Save to Supabase in background (fire-and-forget)
     def save_to_supabase_background():
@@ -1636,17 +1636,17 @@ async def chat_with_ai(request: ChatRequest):
     start_time = time.time()
     session_id = request.session_id
     
-    # Log chat message received
-    await log_activity(
-        session_id=session_id,
-        event_type="chat_message_received",
-        event_category="chat",
-        data={
-            "message_length": len(request.message),
-            "model": request.model,
-            "has_audit_context": request.include_audit_context
-        }
-    )
+    # Log chat message received (disabled)
+    # await log_activity(
+    #     session_id=session_id,
+    #     event_type="chat_message_received",
+    #     event_category="chat",
+    #     data={
+    #         "message_length": len(request.message),
+    #         "model": request.model,
+    #         "has_audit_context": request.include_audit_context
+    #     }
+    # )
     
     # Get or create session
     if session_id not in chat_sessions:
@@ -1929,20 +1929,20 @@ Diese Informationen wurden aus früheren Prüfungen gelernt und vom Benutzer bes
                 print(f"Chat save error: {e}")
         threading.Thread(target=save_chat_background, daemon=True).start()
         
-        # Log AI response
-        duration_ms = int((time.time() - start_time) * 1000)
-        await log_activity(
-            session_id=session_id,
-            event_type="chat_response_sent",
-            event_category="ai",
-            data={
-                "model_used": model_name,
-                "response_length": len(assistant_message),
-                "knowledge_saved": knowledge_saved
-            },
-            duration_ms=duration_ms,
-            status="success"
-        )
+        # Log AI response (disabled)
+        # duration_ms = int((time.time() - start_time) * 1000)
+        # await log_activity(
+        #     session_id=session_id,
+        #     event_type="chat_response_sent",
+        #     event_category="ai",
+        #     data={
+        #         "model_used": model_name,
+        #         "response_length": len(assistant_message),
+        #         "knowledge_saved": knowledge_saved
+        #     },
+        #     duration_ms=duration_ms,
+        #     status="success"
+        # )
         
         # Generate quick reply suggestions based on context
         suggestions = []
@@ -2057,13 +2057,13 @@ async def create_new_session():
     """Create a new empty session."""
     session_id = str(uuid.uuid4())
     
-    # Log new session creation
-    await log_activity(
-        session_id=session_id,
-        event_type="session_created",
-        event_category="system",
-        data={}
-    )
+    # Log new session creation (disabled)
+    # await log_activity(
+    #     session_id=session_id,
+    #     event_type="session_created",
+    #     event_category="system",
+    #     data={}
+    # )
     
     # Save to Supabase
     try:
