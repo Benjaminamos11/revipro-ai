@@ -1590,29 +1590,30 @@ async def analyze_files(
     #     status="success"
     # )
     
-    # Save to Supabase in background (fire-and-forget)
-    def save_to_supabase_background():
-        try:
-            data = {
-                "id": session_id, 
-                "status": "active",
-                "organization_type": auto_name
-            }
-            supabase.table("sessions").upsert(data).execute()
-            print(f"Session saved to Supabase: {session_id} ({auto_name})")
-        except Exception as e:
-            print(f"Supabase save error (non-critical): {e}")
+    # Save to Supabase in background (DISABLED - causing crashes)
+    # def save_to_supabase_background():
+    #     try:
+    #         data = {
+    #             "id": session_id, 
+    #             "status": "active",
+    #             "organization_type": auto_name
+    #         }
+    #         supabase.table("sessions").upsert(data).execute()
+    #         print(f"Session saved to Supabase: {session_id} ({auto_name})")
+    #     except Exception as e:
+    #         print(f"Supabase save error (non-critical): {e}")
+    # 
+    # threading.Thread(target=save_to_supabase_background, daemon=True).start()
+    print(f"Session created (Supabase save disabled): {session_id}")
     
-    threading.Thread(target=save_to_supabase_background, daemon=True).start()
-    
-    # Detect learning opportunities (async, non-blocking)
-    if auto_name and auto_name != "Steuerprüfung":
-        learning_suggestions = await detect_learning_opportunities(
-            session_id, auto_name, tax_docs, fibu_docs, 
-            [r.model_dump() for r in audit_results]
-        )
-        if learning_suggestions:
-            await save_learning_suggestions(session_id, auto_name, learning_suggestions)
+    # Detect learning opportunities (DISABLED - causing crashes)
+    # if auto_name and auto_name != "Steuerprüfung":
+    #     learning_suggestions = await detect_learning_opportunities(
+    #         session_id, auto_name, tax_docs, fibu_docs, 
+    #         [r.model_dump() for r in audit_results]
+    #     )
+    #     if learning_suggestions:
+    #         await save_learning_suggestions(session_id, auto_name, learning_suggestions)
     
     return AnalysisResponse(
         results=audit_results,
