@@ -1486,9 +1486,10 @@ async def analyze_files(
             file_storage[session_id].append((file.filename, file_bytes))
             
             try:
+                # Increase timeout for large PDFs (up to 60s per file)
                 parsed = await asyncio.wait_for(
                     loop.run_in_executor(executor, parse_pdf_sync, file_bytes, file.filename),
-                    timeout=30.0
+                    timeout=60.0
                 )
                 
                 doc_type = parsed.get("type", "unknown")

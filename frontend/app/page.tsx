@@ -839,9 +839,9 @@ Ich erkenne automatisch die Dokumenttypen und prüfe die Abstimmung. Falls etwas
       const formData = new FormData();
       [...uploadedFiles, ...files].forEach(f => formData.append("files", f));
 
-      // Add timeout
+      // Add timeout (increased for large PDFs)
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 min timeout
+      const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 min timeout for large files
 
       const response = await fetch(`${API_URL}/analyze`, {
         method: "POST",
