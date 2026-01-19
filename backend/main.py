@@ -537,7 +537,7 @@ Analysiere die folgenden Prüfungsergebnisse und gib eine professionelle Einsch�
 
         # Call Claude Opus 4.5
         message = anthropic_client.messages.create(
-            model="claude-opus-4.5-latest",
+            model="claude-opus-4-5",
             max_tokens=2000,
             messages=[
                 {
@@ -646,7 +646,7 @@ Antworte NUR im JSON-Format:
             return None
 
         message = anthropic_client.messages.create(
-            model="claude-sonnet-4.5-latest",
+            model="claude-sonnet-4-5",
             max_tokens=800,
             messages=[{"role": "user", "content": prompt}]
         )
@@ -1805,8 +1805,8 @@ Diese Informationen wurden aus früheren Prüfungen gelernt und vom Benutzer bes
 
     try:
         # Determine model based on user selection
-        # Using Claude 4.5 models (using aliases which point to latest 4.5)
-        model_name = "claude-opus-4.5-latest" if request.model == "opus" else "claude-sonnet-4.5-latest"
+        # Using Claude 4.5 models (correct API names)
+        model_name = "claude-opus-4-5" if request.model == "opus" else "claude-sonnet-4-5"
         max_tokens = 2000 if request.model == "opus" else 1500
         
         print(f"Using model: {model_name}")
