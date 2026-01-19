@@ -649,7 +649,7 @@ export default function Home() {
   // Session Management (define FIRST before useEffects)
   const loadSessions = useCallback(async () => {
     try {
-      const response = await fetch("${API_URL}/sessions");
+      const response = await fetch(`${API_URL}/sessions`);
       const data = await response.json();
       setSessions(data.sessions || []);
     } catch (error) {
@@ -659,7 +659,7 @@ export default function Home() {
 
   const createNewSession = useCallback(async () => {
     try {
-      const response = await fetch("${API_URL}/sessions/new", {
+      const response = await fetch(`${API_URL}/sessions/new`, {
         method: "POST",
       });
       const data = await response.json();
@@ -843,7 +843,7 @@ Ich erkenne automatisch die Dokumenttypen und prüfe die Abstimmung. Falls etwas
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 min timeout
 
-      const response = await fetch("${API_URL}/analyze", {
+      const response = await fetch(`${API_URL}/analyze`, {
         method: "POST",
         body: formData,
         signal: controller.signal,
@@ -966,7 +966,7 @@ Ich erkenne automatisch die Dokumenttypen und prüfe die Abstimmung. Falls etwas
     setIsProcessing(true);
 
     try {
-      const response = await fetch("${API_URL}/chat", {
+      const response = await fetch(`${API_URL}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
