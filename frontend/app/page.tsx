@@ -797,13 +797,10 @@ Ich erkenne automatisch die Dokumenttypen und prüfe die Abstimmung. Falls etwas
     }
   }, [messages.length]);
 
-  // Handle file upload
+  // Handle file upload (no auto analysis)
   const handleFilesDropped = useCallback(async (files: File[]) => {
     setUploadedFiles(prev => [...prev, ...files]);
     setShowDropZone(false);
-    setIsProcessing(true);
-    setAnalysisProgress(0);
-    setAnalysisStage("Dokumente werden hochgeladen...");
 
     // Log file upload
     logActivity(sessionId, "files_uploaded", "ui", {
@@ -816,12 +813,19 @@ Ich erkenne automatisch die Dokumenttypen und prüfe die Abstimmung. Falls etwas
     const userMsg: ChatMessage = {
       id: `user-${Date.now()}`,
       role: "user",
-      content: `${files.length} Dokument${files.length > 1 ? 'e' : ''} hochgeladen`,
+      content: `${files.length} Dokument${files.length > 1 ? 'e' : ''} hochgeladen. Klicken Sie auf „Analyse starten“.`,
       timestamp: new Date(),
       type: "files",
       files: files,
     };
     setMessages(prev => [...prev, userMsg]);
+  }, [sessionId]);
+
+  const startAnalysis = useCallback(async () => {
+    if (isProcessing || uploadedFiles.length === 0) return;
+    setIsProcessing(true);
+    setAnalysisProgress(0);
+    setAnalysisStage("Dokumente werden hochgeladen...");
 
     // Animate progress
     const progressInterval = setInterval(() => {
@@ -837,7 +841,7 @@ Ich erkenne automatisch die Dokumenttypen und prüfe die Abstimmung. Falls etwas
       setAnalysisProgress(20);
       
       const formData = new FormData();
-      [...uploadedFiles, ...files].forEach(f => formData.append("files", f));
+      uploadedFiles.forEach(f => formData.append("files", f));
 
       // Add timeout (increased for large PDFs)
       const controller = new AbortController();
@@ -928,7 +932,7 @@ Ich erkenne automatisch die Dokumenttypen und prüfe die Abstimmung. Falls etwas
       logActivity(sessionId, "analysis_error", "error", {
         error_name: error.name,
         error_message: error.message,
-        file_count: [...uploadedFiles, ...files].length
+        file_count: uploadedFiles.length
       });
       
       let errorContent = "Es gab einen Fehler bei der Analyse.";
@@ -949,11 +953,11 @@ Ich erkenne automatisch die Dokumenttypen und prüfe die Abstimmung. Falls etwas
       setMessages(prev => [...prev, errorMsg]);
       setIsProcessing(false);
     }
-  }, [uploadedFiles, sessionId]);
+  }, [uploadedFiles, sessionId, isProcessing]);
 
   // Send chat message
   const sendMessage = useCallback(async (content: string) => {
-    if (!content.trim() || isProcessing) return;
+    if (!content.trim()) return;
 
     const userMsg: ChatMessage = {
       id: `user-${Date.now()}`,
@@ -1000,7 +1004,7 @@ Ich erkenne automatisch die Dokumenttypen und prüfe die Abstimmung. Falls etwas
     } finally {
       setIsProcessing(false);
     }
-  }, [sessionId, isProcessing]);
+  }, [sessionId]);
 
   // Handle key press
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -1087,6 +1091,17 @@ Ich erkenne automatisch die Dokumenttypen und prüfe die Abstimmung. Falls etwas
             </motion.div>
           )}
 
+          {uploadedFiles.length > 0 && !isProcessing && (
+            <div className="flex justify-center my-4">
+              <button
+                onClick={startAnalysis}
+                className="px-5 py-2.5 rounded-xl text-sm font-medium bg-gradient-to-r from-[rgb(var(--accent-primary))] to-[rgb(var(--accent-secondary))] text-white shadow-md hover:shadow-lg transition-all"
+              >
+                Analyse starten
+              </button>
+            </div>
+          )}
+
           {/* Animated Processing indicator */}
           {isProcessing && (
             <motion.div 
@@ -1167,7 +1182,7 @@ Ich erkenne automatisch die Dokumenttypen und prüfe die Abstimmung. Falls etwas
               onKeyPress={handleKeyPress}
               placeholder="Nachricht eingeben oder Frage stellen..."
               rows={1}
-              disabled={isProcessing}
+              disabled={false}
               className="flex-1 px-4 py-3 rounded-xl bg-[rgb(var(--bg-secondary))] border border-[rgb(var(--border-color))] 
                          text-[rgb(var(--text-primary))] placeholder:text-[rgb(var(--text-muted))]
                          focus:outline-none focus:ring-2 focus:ring-[rgb(var(--accent-primary))]/50 resize-none text-sm
@@ -1176,10 +1191,10 @@ Ich erkenne automatisch die Dokumenttypen und prüfe die Abstimmung. Falls etwas
             />
             <button
               onClick={() => sendMessage(inputValue)}
-              disabled={!inputValue.trim() || isProcessing}
+              disabled={!inputValue.trim()}
               className={clsx(
                 "w-11 h-11 rounded-xl flex items-center justify-center transition-all flex-shrink-0",
-                inputValue.trim() && !isProcessing
+                inputValue.trim()
                   ? "bg-gradient-to-r from-[rgb(var(--accent-primary))] to-[rgb(var(--accent-secondary))] text-white shadow-lg"
                   : "bg-[rgb(var(--bg-tertiary))] text-[rgb(var(--text-muted))]"
               )}
