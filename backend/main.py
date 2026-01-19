@@ -1269,6 +1269,13 @@ async def parse_pdf_with_claude_vision(file_bytes: bytes, filename: str) -> dict
     This is more reliable than pdfplumber for complex layouts.
     """
     try:
+        # Check file size - Claude has 100 page limit and we have memory constraints
+        # If PDF is > 3MB, use fallback (likely >100 pages)
+        file_size_mb = len(file_bytes) / (1024 * 1024)
+        if file_size_mb > 3.0:
+            print(f"  Large PDF ({file_size_mb:.1f}MB) - using pdfplumber instead")
+            return parse_pdf_fallback(file_bytes, filename)
+        
         # Encode PDF to base64
         pdf_base64 = base64.standard_b64encode(file_bytes).decode("utf-8")
         
