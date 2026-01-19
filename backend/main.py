@@ -12,6 +12,7 @@ import re
 import os
 import asyncio
 import threading
+import base64
 from typing import List, Optional, Dict, Any
 from concurrent.futures import ThreadPoolExecutor
 from fastapi import FastAPI, UploadFile, File
@@ -1262,8 +1263,144 @@ def extract_bilanz_data(text: str, tables: List, filename: str) -> dict:
 
 # ============== Main Parsing Function ==============
 
-def parse_pdf(file_bytes: bytes, filename: str) -> dict:
-    """Parse a PDF file and extract relevant data."""
+async def parse_pdf_with_claude_vision(file_bytes: bytes, filename: str) -> dict:
+    """
+    Parse a PDF using Claude Vision API.
+    This is more reliable than pdfplumber for complex layouts.
+    """
+    try:
+        # Encode PDF to base64
+        pdf_base64 = base64.standard_b64encode(file_bytes).decode("utf-8")
+        
+        # Create a smart prompt based on filename
+        filename_lower = filename.lower()
+        
+        if "ja" in filename_lower or "jahresabrechnung" in filename_lower:
+            prompt = """Du bist ein Experte für Schweizer Steuerabrechnungen.
+
+Analysiere dieses PDF und extrahiere:
+1. Dokumenttyp: JA (Jahresabrechnung)
+2. Jahr: Welches Steuerjahr?
+3. Total Restanzen: Zeile 45, Spalte "Politische Gemeinde" oder "Gemeinde"
+4. Ist der Betrag negativ?
+
+Antworte nur mit JSON:
+{"type": "JA", "year": "2024", "restanzen": 123456.78, "negative": false}"""
+
+        elif "sr" in filename_lower or "steuerrestanzen" in filename_lower:
+            prompt = """Analysiere diese Steuerrestanzen-Abrechnung:
+
+1. Dokumenttyp: SR
+2. Jahr: Welches Jahr?
+3. Total Restanzen: Zeile 51, Spalte "Politische Gemeinde"  
+4. Ist es ein Minusbetrag? (prüfe Vorzeichen oder "Minusbetrag" im Titel)
+
+JSON:
+{"type": "SR", "year": "2023", "restanzen": 12345.67, "negative": false}"""
+
+        elif "fibu" in filename_lower or "konto" in filename_lower or "restanzen" in filename_lower:
+            prompt = """Analysiere diesen FiBu-Kontoauszug:
+
+WICHTIG: Das Dokument kann MEHRERE Konten enthalten (1012.00 UND 2002.00)!
+
+Für JEDES gefundene Konto:
+1. Konto-Nummer (1012.00, 2002.00, etc.)
+2. Endsaldo (NICHT Startsaldo!) - steht in der Zeile "Endsaldo"
+
+Falls MEHRERE Konten:
+JSON:
+{"type": "fibu_combined", "accounts": [
+  {"account": "1012.00", "saldo": 5248958.26},
+  {"account": "2002.00", "saldo": 101446.54}
+]}
+
+Falls nur EIN Konto:
+JSON:
+{"type": "fibu", "account": "1012.00", "saldo": 123456.78}"""
+
+        elif "nast" in filename_lower or "nachsteuer" in filename_lower:
+            prompt = """Analysiere diese Nachsteuer-Abrechnung:
+
+1. Jahr
+2. Total Restanzen (Zeile 38 oder 45)
+3. Spalte "Politische Gemeinde"
+
+JSON:
+{"type": "NAST", "year": "2024", "restanzen": 12345.67, "negative": false}"""
+
+        else:
+            prompt = """Analysiere dieses Dokument und identifiziere:
+1. Typ: JA, SR, NAST, FiBu, Bilanz, ER?
+2. Relevante Zahlen und Konten
+
+JSON:
+{"type": "unknown", "data": {}}"""
+
+        # Call Claude with PDF
+        response = anthropic_client.messages.create(
+            model="claude-sonnet-4-5",  # Sonnet is faster for extraction
+            max_tokens=1000,
+            messages=[{
+                "role": "user",
+                "content": [
+                    {
+                        "type": "document",
+                        "source": {
+                            "type": "base64",
+                            "media_type": "application/pdf",
+                            "data": pdf_base64
+                        }
+                    },
+                    {
+                        "type": "text",
+                        "text": prompt
+                    }
+                ]
+            }]
+        )
+        
+        # Parse Claude's JSON response
+        response_text = response.content[0].text
+        
+        # Extract JSON from response (might have markdown)
+        import json
+        json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+        if json_match:
+            result = json.loads(json_match.group(0))
+            result["filename"] = filename
+            print(f"  Claude Vision extracted: {result}")
+            
+            # Handle combined FiBu documents
+            if result.get("type") == "fibu_combined":
+                # Return multiple fibu documents
+                accounts = result.get("accounts", [])
+                return {
+                    "type": "fibu_combined",
+                    "documents": [
+                        {
+                            "filename": filename,
+                            "type": "fibu",
+                            "account": acc["account"],
+                            "saldo": acc["saldo"]
+                        }
+                        for acc in accounts
+                    ]
+                }
+            
+            return result
+        else:
+            print(f"  Claude Vision failed to return JSON: {response_text[:100]}")
+            return {"filename": filename, "type": "unknown"}
+            
+    except Exception as e:
+        print(f"  Claude Vision error: {e}")
+        # Fallback to old method
+        return parse_pdf_fallback(file_bytes, filename)
+
+
+def parse_pdf_fallback(file_bytes: bytes, filename: str) -> dict:
+    """Fallback to pdfplumber if Claude Vision fails."""
+    print(f"  Using pdfplumber fallback for {filename}")
     text = extract_text_from_pdf(file_bytes)
     tables = extract_tables_from_pdf(file_bytes)
     doc_type = detect_tax_document_type(text, filename)
@@ -1290,8 +1427,15 @@ def parse_pdf(file_bytes: bytes, filename: str) -> dict:
 
 
 def parse_pdf_sync(file_bytes: bytes, filename: str) -> dict:
-    """Wrapper for thread pool execution."""
-    return parse_pdf(file_bytes, filename)
+    """Wrapper for thread pool execution - uses Claude Vision."""
+    # We need to call async function from sync context
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        result = loop.run_until_complete(parse_pdf_with_claude_vision(file_bytes, filename))
+        return result
+    finally:
+        loop.close()
 
 
 # ============== Audit Logic ==============
