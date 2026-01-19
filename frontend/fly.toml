@@ -1,0 +1,47 @@
+# Fly.io configuration for Revipro Frontend
+app = "revipro-frontend"
+primary_region = "ams" # Amsterdam (closest to Switzerland)
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "3000"
+  NODE_ENV = "production"
+
+[[services]]
+  internal_port = 3000
+  protocol = "tcp"
+
+  [[services.ports]]
+    handlers = ["http"]
+    port = 80
+    force_https = true
+
+  [[services.ports]]
+    handlers = ["tls", "http"]
+    port = 443
+
+  [services.concurrency]
+    type = "connections"
+    hard_limit = 100
+    soft_limit = 80
+
+  [[services.tcp_checks]]
+    interval = "15s"
+    timeout = "2s"
+    grace_period = "10s"
+
+  [[services.http_checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "get"
+    path = "/"
+    protocol = "http"
+
+[deploy]
+  strategy = "rolling"
+
+# Environment variable to set via: fly secrets set KEY=value
+# NEXT_PUBLIC_API_URL (backend URL)
