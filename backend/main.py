@@ -383,17 +383,8 @@ app = FastAPI(title="Revipro Reconciliation Engine", version="5.0.0")
 # Enable CORS for frontend communication
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000", 
-        "http://localhost:3001", 
-        "http://127.0.0.1:3000", 
-        "http://127.0.0.1:3001",
-        "https://revipro-frontend.fly.dev",
-        "https://revipro-ai.vercel.app",
-        "https://revipro-ai-git-main-benjaminamos11.vercel.app",
-        "https://*.vercel.app",
-    ],
-    allow_credentials=True,
+    allow_origins=["*"],  # Allow all origins for prototype
+    allow_credentials=False,  # Must be False when allow_origins is *
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -544,9 +535,9 @@ Analysiere die folgenden Prüfungsergebnisse und gib eine professionelle Einsch�
         for doc in fibu_docs[:10]:
             context += f"- {doc.get('filename', 'Unknown')}: Konto={doc.get('account', '?')}, Saldo={doc.get('saldo', 'N/A')}\n"
 
-        # Call Claude Opus 4.5 for high-accuracy financial analysis
+        # Call Claude Opus 4.5
         message = anthropic_client.messages.create(
-            model="claude-opus-4.5-20250514",
+            model="claude-opus-4-20250514",
             max_tokens=2000,
             messages=[
                 {
@@ -655,7 +646,7 @@ Antworte NUR im JSON-Format:
             return None
 
         message = anthropic_client.messages.create(
-            model="claude-opus-4.5-20250514",
+            model="claude-sonnet-4-20250514",
             max_tokens=800,
             messages=[{"role": "user", "content": prompt}]
         )
@@ -1814,7 +1805,8 @@ Diese Informationen wurden aus früheren Prüfungen gelernt und vom Benutzer bes
 
     try:
         # Determine model based on user selection
-        model_name = "claude-opus-4.5-20250514" if request.model == "opus" else "claude-sonnet-4.5-20250514"
+        # Using Claude 4.5 models
+        model_name = "claude-opus-4-20250514" if request.model == "opus" else "claude-sonnet-4-20250514"
         max_tokens = 2000 if request.model == "opus" else 1500
         
         print(f"Using model: {model_name}")
