@@ -1527,6 +1527,10 @@ async def analyze_files(
     print(f"Summary: Tax={len(tax_docs)}, FiBu={len(fibu_docs)}, ER={len(er_docs)}, Bilanz={len(bilanz_docs)}")
     
     # Perform audit
+    # Auto-detect organization name FIRST
+    auto_name = detect_organization_name(tax_docs, fibu_docs)
+    print(f"Detected organization: {auto_name}")
+    
     try:
         audit_results = perform_audit_with_breakdown(tax_docs, fibu_docs, er_docs, bilanz_docs)
         print("\nAudit completed successfully.")
@@ -1569,9 +1573,6 @@ async def analyze_files(
     # Calculate duration
     duration_ms = int((time.time() - start_time) * 1000)
     
-    # Auto-detect organization name from documents
-    auto_name = detect_organization_name(tax_docs, fibu_docs)
-    
     # Log analysis complete (disabled for now - causing crashes)
     # await log_activity(
     #     session_id=session_id,
@@ -1590,21 +1591,35 @@ async def analyze_files(
     #     status="success"
     # )
     
-    # Save to Supabase in background (DISABLED - causing crashes)
-    # def save_to_supabase_background():
-    #     try:
-    #         data = {
-    #             "id": session_id, 
-    #             "status": "active",
-    #             "organization_type": auto_name
-    #         }
-    #         supabase.table("sessions").upsert(data).execute()
-    #         print(f"Session saved to Supabase: {session_id} ({auto_name})")
-    #     except Exception as e:
-    #         print(f"Supabase save error (non-critical): {e}")
-    # 
-    # threading.Thread(target=save_to_supabase_background, daemon=True).start()
-    print(f"Session created (Supabase save disabled): {session_id}")
+    # Save to Supabase in background
+    def save_to_supabase_background():
+        try:
+            # Save session
+            session_data = {
+                "id": session_id, 
+                "status": "active",
+                "organization_type": auto_name
+            }
+            supabase.table("sessions").upsert(session_data).execute()
+            print(f"Session saved to Supabase: {session_id} ({auto_name})")
+            
+            # Save documents to Supabase (metadata only - PDFs stay in storage)
+            for filename, file_bytes in file_storage.get(session_id, []):
+                try:
+                    doc_data = {
+                        "session_id": session_id,
+                        "filename": filename,
+                        "file_path": f"{session_id}/{filename}",
+                        "file_size": len(file_bytes),
+                        "document_type": "pdf"
+                    }
+                    supabase.table("documents").insert(doc_data).execute()
+                except Exception as e:
+                    print(f"Document save error: {e}")
+        except Exception as e:
+            print(f"Supabase save error (non-critical): {e}")
+    
+    threading.Thread(target=save_to_supabase_background, daemon=True).start()
     
     # Detect learning opportunities (DISABLED - causing crashes)
     # if auto_name and auto_name != "Steuerprüfung":
