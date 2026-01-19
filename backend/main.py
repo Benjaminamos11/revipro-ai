@@ -2008,7 +2008,7 @@ async def update_chat_context(session_id: str, audit_results: dict):
 
 @app.get("/sessions")
 async def list_sessions():
-    """Get all sessions from Supabase."""
+    """Get all sessions from Supabase with message preview."""
     try:
         result = supabase.table("sessions").select("*").order("created_at", desc=True).limit(50).execute()
         sessions = []
@@ -2017,13 +2017,20 @@ async def list_sessions():
             docs = supabase.table("documents").select("id", count="exact").eq("session_id", session["id"]).execute()
             doc_count = docs.count or 0
             
+            # Get message count and preview
+            messages = supabase.table("chat_messages").select("content", count="exact").eq("session_id", session["id"]).order("created_at", desc=False).limit(1).execute()
+            message_count = messages.count or 0
+            first_message = messages.data[0]["content"][:50] + "..." if messages.data else None
+            
             sessions.append({
                 "id": session["id"],
                 "created_at": session["created_at"],
                 "updated_at": session.get("updated_at"),
                 "status": session.get("status", "active"),
                 "organization_type": session.get("organization_type"),
-                "document_count": doc_count
+                "document_count": doc_count,
+                "message_count": message_count,
+                "preview": first_message
             })
         
         return {"sessions": sessions}
@@ -2078,21 +2085,23 @@ async def create_new_session():
     return {"session_id": session_id, "created_at": datetime.now().isoformat()}
 
 
+class LogRequest(BaseModel):
+    session_id: Optional[str] = None
+    event_type: str
+    event_category: str
+    data: Dict = {}
+    user_agent: Optional[str] = None
+
+
 @app.post("/log")
-async def log_frontend_activity(
-    session_id: str = None,
-    event_type: str = None,
-    event_category: str = None,
-    data: dict = None,
-    user_agent: str = None
-):
+async def log_frontend_activity(request: LogRequest):
     """Receive and log frontend activities."""
     await log_activity(
-        session_id=session_id,
-        event_type=event_type,
-        event_category=event_category,
-        data=data,
-        user_agent=user_agent
+        session_id=request.session_id,
+        event_type=request.event_type,
+        event_category=request.event_category,
+        data=request.data,
+        user_agent=request.user_agent
     )
     return {"status": "ok"}
 

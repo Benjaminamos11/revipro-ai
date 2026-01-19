@@ -35,6 +35,8 @@ interface Session {
   status: string;
   organization_type?: string;
   document_count: number;
+  message_count?: number;
+  preview?: string;
 }
 
 interface ChatMessage {
@@ -537,11 +539,24 @@ function Sidebar({
                         </p>
                       )}
                       
-                      {session.document_count > 0 && (
-                        <p className="text-xs text-[rgb(var(--text-muted))] mt-1">
-                          {session.document_count} Dok.
+                      {session.preview && (
+                        <p className="text-xs text-[rgb(var(--text-muted))] mt-1 truncate opacity-70">
+                          {session.preview}
                         </p>
                       )}
+                      
+                      <div className="flex items-center gap-2 mt-1">
+                        {session.document_count > 0 && (
+                          <span className="text-xs text-[rgb(var(--text-muted))]">
+                            {session.document_count} Dok.
+                          </span>
+                        )}
+                        {session.message_count && session.message_count > 0 && (
+                          <span className="text-xs text-[rgb(var(--text-muted))]">
+                            • {session.message_count} Chats
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <button
                       onClick={(e) => {
@@ -909,9 +924,18 @@ Ich erkenne automatisch die Dokumenttypen und prüfe die Abstimmung. Falls etwas
       clearInterval(progressInterval);
       console.error("Analysis error:", error);
       
+      // Log error
+      logActivity(sessionId, "analysis_error", "error", {
+        error_name: error.name,
+        error_message: error.message,
+        file_count: [...uploadedFiles, ...files].length
+      });
+      
       let errorContent = "Es gab einen Fehler bei der Analyse.";
       if (error.name === "AbortError") {
-        errorContent = "Die Analyse hat zu lange gedauert (Timeout). Bitte versuchen Sie es mit weniger Dokumenten.";
+        errorContent = "Die Analyse hat zu lange gedauert (Timeout nach 2 Minuten). Bitte versuchen Sie es mit weniger Dokumenten.";
+      } else if (error.message && error.message.includes("Failed to fetch")) {
+        errorContent = "Verbindung zum Backend fehlgeschlagen. Bitte prüfen Sie Ihre Internetverbindung und versuchen Sie es erneut.";
       } else if (error.message) {
         errorContent = `Fehler: ${error.message}`;
       }
@@ -925,7 +949,7 @@ Ich erkenne automatisch die Dokumenttypen und prüfe die Abstimmung. Falls etwas
       setMessages(prev => [...prev, errorMsg]);
       setIsProcessing(false);
     }
-  }, [uploadedFiles]);
+  }, [uploadedFiles, sessionId]);
 
   // Send chat message
   const sendMessage = useCallback(async (content: string) => {
